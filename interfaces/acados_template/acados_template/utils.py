@@ -41,7 +41,8 @@ if os.name == 'nt':
 else:
     from ctypes import CDLL as DllLoader
 import numpy as np
-from casadi import DM, MX, SX, CasadiMeta, Function
+from casadi import DM, MX, SX, CasadiMeta, Function, extract_parametric, substitute, cse
+import casadi as ca
 
 ALLOWED_CASADI_VERSIONS = (
     '3.4.0'
@@ -508,3 +509,65 @@ def verbose_system_call(cmd, verbose=True, shell=False):
         stderr=None if verbose else STDOUT,
         shell=shell
     )
+
+
+class GenerateContext:
+    def __init__(self, model, opts=None):
+        self.model = model
+        p_slow = MX(0,1)
+        if hasattr(self.model, 'p_slow'):
+            p_slow = self.model.p_slow
+        self.p_slow = p_slow
+
+
+        self.names = []
+        self.params = []
+        self.opts = opts
+        if opts is None:
+            self.opts = {}
+
+    def add(self, fun, name, opts):
+
+        args = fun.mx_in()
+        expr = fun.call(args,True,False)
+        [expr_ret, symbols, param] = extract_parametric(expr, self.p_slow)
+
+        symbols = symbols.primitives()
+
+        pools = []
+        for i,e in enumerate(symbols):
+            name_e = name + "|" + str(i)
+            pools.append(MX(DM.zeros(e.sparsity()), name_e))
+            self.names.append(name_e)
+
+        expr_ret = substitute(expr_ret,symbols,pools)
+        self.params += param.primitives()
+
+        fun_mod = Function(fun.name(), args, expr_ret)
+        fun_mod.generate(name, opts)
+
+    def finalize(self):
+
+        # Nothing to do
+        if not self.params: return
+
+        print("finalize called")
+        print(self.names)
+        print(ca.vcat(cse(self.params)))
+
+        fun = Function('helpers',[self.model.p],cse(self.params),['p'],self.names)
+        print(fun)
+        fun.disp(True)
+
+
+        # change directory
+        cwd = os.getcwd()
+        model_dir = os.path.abspath(self.opts["code_export_directory"])
+        os.chdir(model_dir)
+
+        casadi_codegen_opts = dict(mex=False, casadi_int='int', casadi_real='double')
+        casadi_codegen_opts["with_header"] = True
+
+        fun.generate("helpers_" + self.model.name,casadi_codegen_opts)
+
+        os.chdir(cwd)

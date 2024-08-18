@@ -113,7 +113,8 @@ class AcadosOcpSolver:
         acados_ocp.solver_options.Tsim = acados_ocp.solver_options.time_steps[0]
 
         # generate code (external functions and templated code)
-        acados_ocp.generate_external_functions()
+        context = acados_ocp.generate_external_functions()
+        context.finalize()
         acados_ocp.dump_to_json(json_file)
         acados_ocp.render_templates(json_file, cmake_builder=cmake_builder)
 
