@@ -139,10 +139,29 @@ classdef GenerateContext < handle
             precompute_pairs = {};
 
             for i = 1:length(self.function_input_output_pairs)
+                name = self.list_funname_dir_pairs{i}{1};
+
+                if contains(name,'constr_h_fun_jac_uxt')
+                    disp('Debug constr_h_fun_jac_uxt A')
+                    os = self.function_input_output_pairs{i}{2};
+                    disp(os{1})
+                end
                 outputs = cse(self.function_input_output_pairs{i}{2});
+                if contains(name,'constr_h_fun_jac_uxt')
+                    disp('Debug constr_h_fun_jac_uxt B')
+                    disp(outputs{1})
+                end
 
                 % detect parametric expressions in p_global
                 [outputs_ret, symbols, param_expr] = extract_parametric(outputs, self.p_global);
+
+                if contains(name,'constr_h_fun_jac_uxt')
+                    disp('Debug constr_h_fun_jac_uxt C')
+                    celldisp(outputs)
+                    celldisp(outputs_ret)
+                    celldisp(symbols)
+                    celldisp(param_expr)
+                end
 
                 % substitute previously detected param_expr in outputs
                 symbols_to_add = {};
